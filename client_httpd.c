@@ -1,6 +1,6 @@
 /* client httpd.
 
-   $$DATE$$ : jeu. 01 novembre 2018 (19:40:58)
+   $$DATE$$ : ven. 02 novembre 2018 (16:53:22)
 
    jseb@finiderire.com
 
@@ -27,7 +27,7 @@ struct _TCPsocket {
 #include <stdlib.h>
 #include <SDL2/SDL_net.h>
 
-#define MAXLEN 16384
+#define MAXLEN 8192
 char buffer[MAXLEN];
 
 
@@ -78,13 +78,45 @@ int init_tcp( IPaddress *ip, TCPsocket *tcpsock)
 }
 
 
-int receive_tcp( TCPsocket *tcpsock)
+int get_stream_beginning( TCPsocket *tcpsock)
 {
   int bytes_read = 0;
 
-  bytes_read = SDLNet_TCP_Recv(*tcpsock,buffer,MAXLEN);
+  /* envoyer un « GET / » pour initier la récup de données */
+  char * const get = "GET /\n";
+  fprintf(stderr,"receive_tcp\n");
+  int bytes_written = SDLNet_TCP_Send( *tcpsock, get, strlen(get));
+  fprintf(stderr,"bytes_written: %d\n",bytes_written);
+
+  if (bytes_written) {
+    // on reçoit le header http, et le début du flux
+    bytes_read = SDLNet_TCP_Recv( *tcpsock,buffer,MAXLEN);
+
+    for ( int i=0 ; i<bytes_read; i++) {
+      // interrompre la recherche dès que la signature est trouvée
+      if (!strncmp("OggS",&buffer[i],4) ) {
+        bytes_read = bytes_read - i; // ajuster la frame lue
+        memcpy(buffer, &buffer[i], bytes_read);
+        break;
+      }
+    }
+
+  } // bytes_written
+
   return bytes_read;
 }
+
+
+int get_stream( TCPsocket *tcpsock)
+{
+
+  // reçoit le flux
+  int  bytes_read = SDLNet_TCP_Recv( *tcpsock,buffer,MAXLEN);
+  fprintf(stderr,"bytes_read: %d\n",bytes_read);
+
+  return bytes_read;
+}
+
 
 
 int main (int argc, char **argv)
@@ -103,14 +135,15 @@ int main (int argc, char **argv)
       is_err = init_tcp( &ip, &tcpsock);
     }
 
-    int bytes_read = 0;
-    do {
-      bytes_read = receive_tcp( &tcpsock);
-      if ( bytes_read > 0 ) {
-        printf("%s\n",buffer);
-      }
+    int bytes_read = get_stream_beginning( &tcpsock);
+    fwrite( buffer, 1, bytes_read, stdout);
 
-    } while(bytes_read >= 0);
+    do {
+      bytes_read = get_stream( &tcpsock);
+      if ( bytes_read > 0 ) {
+        fwrite( buffer, 1, bytes_read, stdout);
+      }
+    } while(bytes_read > 0);
 
 
     if (!is_err) {
