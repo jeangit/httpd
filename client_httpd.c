@@ -1,6 +1,6 @@
 /* client httpd.
 
-   $$DATE$$ : ven. 02 novembre 2018 (16:53:22)
+   $$DATE$$ : ven. 02 novembre 2018 (20:00:02)
 
    jseb@finiderire.com
 
@@ -25,11 +25,15 @@ struct _TCPsocket {
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <SDL2/SDL_net.h>
+#include "mixer.h"
 
 #define MAXLEN 8192
 char buffer[MAXLEN];
 
+static int stop_signal = 0; // SIGTERM ou SIGINT
+static void sig_fn(int sign) { stop_signal = 1; }
 
 
 int resolve( char *machine, int port, IPaddress *ip)
@@ -118,12 +122,30 @@ int get_stream( TCPsocket *tcpsock)
 }
 
 
+void read_stream( TCPsocket *tcpsock)
+{
+  int bytes_read = get_stream_beginning( tcpsock);
+  fwrite( buffer, 1, bytes_read, stdout);
+
+  do {
+    bytes_read = get_stream( tcpsock);
+    if ( bytes_read > 0 ) {
+      fwrite( buffer, 1, bytes_read, stdout);
+    }
+  } while(bytes_read > 0 && !stop_signal);
+}
+
 
 int main (int argc, char **argv)
 {
   int is_err = 0;
   IPaddress ip;
   TCPsocket tcpsock; //attention, TCPsocket est un pointeur vers _TCPsocket
+
+
+  signal(SIGINT, sig_fn);
+  signal(SIGTERM, sig_fn);
+
 
   if (argc >= 2) {
 
@@ -135,16 +157,9 @@ int main (int argc, char **argv)
       is_err = init_tcp( &ip, &tcpsock);
     }
 
-    int bytes_read = get_stream_beginning( &tcpsock);
-    fwrite( buffer, 1, bytes_read, stdout);
-
-    do {
-      bytes_read = get_stream( &tcpsock);
-      if ( bytes_read > 0 ) {
-        fwrite( buffer, 1, bytes_read, stdout);
-      }
-    } while(bytes_read > 0);
-
+    if (!is_err) {
+      read_stream( &tcpsock);
+    }
 
     if (!is_err) {
       if (tcpsock) {
