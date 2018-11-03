@@ -1,6 +1,6 @@
 /* client httpd.
 
-   $$DATE$$ : ven. 02 novembre 2018 (20:00:02)
+   $$DATE$$ : sam. 03 novembre 2018 (19:47:25)
 
    jseb@finiderire.com
 
@@ -33,7 +33,7 @@ struct _TCPsocket {
 char buffer[MAXLEN];
 
 static int stop_signal = 0; // SIGTERM ou SIGINT
-static void sig_fn(int sign) { stop_signal = 1; }
+static void sig_fn(int sign) { stop_signal = sign; }
 
 
 int resolve( char *machine, int port, IPaddress *ip)
@@ -145,6 +145,8 @@ int main (int argc, char **argv)
 
   signal(SIGINT, sig_fn);
   signal(SIGTERM, sig_fn);
+
+  mixer_init();
 
 
   if (argc >= 2) {
